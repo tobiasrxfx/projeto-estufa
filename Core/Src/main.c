@@ -99,6 +99,15 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		/*SENSOR DE LUMINOSIDADE END*/
 
 		/*SENSOR DE TEMPERATURA BEGIN*/
+
+	    DHT_GetData(&DHT11_Data);
+	    Temperature = (float) DHT11_Data.Temperature /10.0;
+	    Humidity = (float) DHT11_Data.Humidity /10.0;
+
+		/* Mostra o valor se válido */
+		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", Temperature, Humidity);
+		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
+
 		/*SENSOR DE TEMPERATURA END*/
 	}
 }
@@ -151,10 +160,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    DHT_GetData(&DHT11_Data);
-    Temperature = (float) DHT11_Data.Temperature /10.0;
-    Humidity = (float) DHT11_Data.Humidity /10.0;
-    HAL_Delay(3000);
   }
   /* USER CODE END 3 */
 }
@@ -256,8 +261,6 @@ static void MX_TIM7_Init(void)
 
   /* USER CODE BEGIN TIM7_Init 1 */
 
-  //freq = 84MHz/(42000*8000) = 0.25Hz (4 segundos)
-
   /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 42000-1;
@@ -275,9 +278,7 @@ static void MX_TIM7_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM7_Init 2 */
-
   HAL_TIM_Base_Start_IT(&htim7);
-
   /* USER CODE END TIM7_Init 2 */
 
 }
