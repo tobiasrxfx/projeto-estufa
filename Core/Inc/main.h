@@ -59,6 +59,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Button_Janela_Pin GPIO_PIN_1
+#define Button_Janela_GPIO_Port GPIOA
+#define Button_Janela_EXTI_IRQn EXTI1_IRQn
 #define Button_Irrigacao_Pin GPIO_PIN_4
 #define Button_Irrigacao_GPIO_Port GPIOA
 #define Button_Irrigacao_EXTI_IRQn EXTI4_IRQn

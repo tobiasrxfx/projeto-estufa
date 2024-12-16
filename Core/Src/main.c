@@ -46,10 +46,13 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc1;
+
 I2C_HandleTypeDef hi2c1;
 
 TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim7;
+TIM_HandleTypeDef htim14;
 
 UART_HandleTypeDef huart2;
 
@@ -66,6 +69,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM7_Init(void);
 static void MX_TIM1_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_TIM14_Init(void);
 /* USER CODE BEGIN PFP */
 
 
@@ -77,9 +82,13 @@ static void MX_TIM1_Init(void);
 
 DHT_DataTypedef DHT11_Data;
 float Temperature, Humidity;
+uint8_t flag_janela = 0;
 
 /* Callback para a interrupção do temporizador TIM7 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+
+	static int posicao_janela = 1000;
+
 	if (htim->Instance == TIM7)
 	{
 		uint16_t size;
@@ -102,57 +111,76 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 		/*CONTROLE DE JANELA BEGIN*/
 
-		static int posicao_janela = 1000;
-
-		if(luxValue<100) /*janela aberta 90°*/
+		if(!flag_janela) /*Testa se está em modo de controle automático*/
 		{
-			for(;posicao_janela<2000;posicao_janela++)
+			if(luxValue<100) /*janela aberta 90°*/
 			{
-				__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
-				for(int i = 0; i <8000;i++);
-			}
-		}else if(luxValue<300) /*janela para 45°*/
-		{
-			if(posicao_janela < 1500)
-			{
-				for(;posicao_janela<1500;posicao_janela++)
+				for(;posicao_janela<2000;posicao_janela++)
 				{
 					__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
 					for(int i = 0; i <8000;i++);
 				}
-			}
-			else
+			}else if(luxValue<300) /*janela para 45°*/
 			{
-				for(;posicao_janela>1500;posicao_janela--)
+				if(posicao_janela < 1500)
+				{
+					for(;posicao_janela<1500;posicao_janela++)
+					{
+						__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+						for(int i = 0; i <8000;i++);
+					}
+				}
+				else
+				{
+					for(;posicao_janela>1500;posicao_janela--)
+					{
+						__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+						for(int i = 0; i <8000;i++);
+					}
+				}
+			}else /*janela fechada*/
+			{
+				for(;posicao_janela>1000;posicao_janela--)
 				{
 					__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
 					for(int i = 0; i <8000;i++);
 				}
-			}
-		}else /*janela fechada*/
-		{
-			for(;posicao_janela>1000;posicao_janela--)
-			{
-				__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
-				for(int i = 0; i <8000;i++);
 			}
 		}
-
 
 		/*CONTROLE DE JANELA END*/
 
 		/*SENSOR DE TEMPERATURA E UMIDADE BEGIN*/
 
-	    DHT_GetData(&DHT11_Data);
-	    Temperature = (float) DHT11_Data.Temperature /10.0;
-	    Humidity = (float) DHT11_Data.Humidity /10.0;
-
-		/* Mostra o valor se válido */
-		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", Temperature, Humidity);
-		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
+//	    DHT_GetData(&DHT11_Data);
+//	    Temperature = (float) DHT11_Data.Temperature /10.0;
+//	    Humidity = (float) DHT11_Data.Humidity /10.0;
+//
+//		/* Mostra o valor se válido */
+//		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", Temperature, Humidity);
+//		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
 
 		/*SENSOR DE TEMPERATURA E UMIDADE END*/
 	}
+	if (htim->Instance == TIM14)
+	{
+		/*CONTROLE MANUAL DA JANELA START*/
+		if(flag_janela)
+		{
+			uint8_t val_adc;
+			HAL_ADC_Start(&hadc1); // start the adc
+			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+			val_adc = HAL_ADC_GetValue(&hadc1);
+			HAL_ADC_Stop(&hadc1); // stop adc
+
+			/*calcula a posição atual pelo potenciometro*/
+			posicao_janela = 2000 - val_adc*1000/256;
+			/*atualiza a posição da janela*/
+			__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+		}
+		/*CONTROLE MANUAL DA JANELA END*/
+	}
+
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
@@ -162,6 +190,19 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 		/*Inverte o estado do relé*/
 		HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
 		HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+	}
+	/*Botão para ativar ou desativar a o controle manual da janela*/
+	if (GPIO_Pin == Button_Janela_Pin) {
+		uint8_t val_adc;
+		HAL_ADC_Start(&hadc1); // start the adc
+		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+		val_adc = HAL_ADC_GetValue(&hadc1);
+		HAL_ADC_Stop(&hadc1); // stop adc
+
+		if(!flag_janela)
+		{
+			if(val_adc < 15) flag_janela = !flag_janela;
+		}else flag_janela = !flag_janela;
 	}
 }
 
@@ -200,14 +241,18 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM7_Init();
   MX_TIM1_Init();
+  MX_ADC1_Init();
+  MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
-  HAL_TIM_Base_Start_IT(&htim7);
+  HAL_ADC_Start(&hadc1);
 
   TSL2561_Init(&tslSensor, &hi2c1, TSL2561_ADDR);
 
+  HAL_TIM_Base_Start_IT(&htim7);
+  HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -266,6 +311,58 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
+{
+
+  /* USER CODE BEGIN ADC1_Init 0 */
+
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_8B;
+  hadc1.Init.ScanConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.DMAContinuousRequests = DISABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
+
 }
 
 /**
@@ -416,6 +513,37 @@ static void MX_TIM7_Init(void)
 }
 
 /**
+  * @brief TIM14 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM14_Init(void)
+{
+
+  /* USER CODE BEGIN TIM14_Init 0 */
+
+  /* USER CODE END TIM14_Init 0 */
+
+  /* USER CODE BEGIN TIM14_Init 1 */
+
+  /* USER CODE END TIM14_Init 1 */
+  htim14.Instance = TIM14;
+  htim14.Init.Prescaler = 84-1;
+  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim14.Init.Period = 1000-1;
+  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM14_Init 2 */
+
+  /* USER CODE END TIM14_Init 2 */
+
+}
+
+/**
   * @brief USART2 Initialization Function
   * @param None
   * @retval None
@@ -471,11 +599,11 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : Button_Irrigacao_Pin */
-  GPIO_InitStruct.Pin = Button_Irrigacao_Pin;
+  /*Configure GPIO pins : Button_Janela_Pin Button_Irrigacao_Pin */
+  GPIO_InitStruct.Pin = Button_Janela_Pin|Button_Irrigacao_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(Button_Irrigacao_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : Motor_Irrigacao_Pin Motor_Irrigacao_2_Pin */
   GPIO_InitStruct.Pin = Motor_Irrigacao_Pin|Motor_Irrigacao_2_Pin;
@@ -492,6 +620,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
   HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
