@@ -49,6 +49,8 @@ extern "C" {
 
 /* USER CODE END EM */
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
 
@@ -57,10 +59,14 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define B1_Pin GPIO_PIN_13
-#define B1_GPIO_Port GPIOC
-#define LD2_Pin GPIO_PIN_5
-#define LD2_GPIO_Port GPIOA
+#define Button_Janela_Pin GPIO_PIN_1
+#define Button_Janela_GPIO_Port GPIOA
+#define Button_Janela_EXTI_IRQn EXTI1_IRQn
+#define Button_Irrigacao_Pin GPIO_PIN_4
+#define Button_Irrigacao_GPIO_Port GPIOA
+#define Button_Irrigacao_EXTI_IRQn EXTI4_IRQn
+#define Motor_Irrigacao_Pin GPIO_PIN_10
+#define Motor_Irrigacao_GPIO_Port GPIOB
 #define DHT11_Pin GPIO_PIN_10
 #define DHT11_GPIO_Port GPIOA
 #define TMS_Pin GPIO_PIN_13
@@ -69,6 +75,8 @@ void Error_Handler(void);
 #define TCK_GPIO_Port GPIOA
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
+#define Motor_Irrigacao_2_Pin GPIO_PIN_4
+#define Motor_Irrigacao_2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
