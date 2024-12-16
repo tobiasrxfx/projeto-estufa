@@ -100,7 +100,48 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 		/*SENSOR DE LUMINOSIDADE END*/
 
-		/*SENSOR DE TEMPERATURA BEGIN*/
+		/*CONTROLE DE JANELA BEGIN*/
+
+		static int posicao_janela = 1000;
+
+		if(luxValue<100) /*janela aberta 90°*/
+		{
+			for(;posicao_janela<2000;posicao_janela++)
+			{
+				__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+				for(int i = 0; i <8000;i++);
+			}
+		}else if(luxValue<300) /*janela para 45°*/
+		{
+			if(posicao_janela < 1500)
+			{
+				for(;posicao_janela<1500;posicao_janela++)
+				{
+					__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+					for(int i = 0; i <8000;i++);
+				}
+			}
+			else
+			{
+				for(;posicao_janela>1500;posicao_janela--)
+				{
+					__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+					for(int i = 0; i <8000;i++);
+				}
+			}
+		}else /*janela fechada*/
+		{
+			for(;posicao_janela>1000;posicao_janela--)
+			{
+				__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
+				for(int i = 0; i <8000;i++);
+			}
+		}
+
+
+		/*CONTROLE DE JANELA END*/
+
+		/*SENSOR DE TEMPERATURA E UMIDADE BEGIN*/
 
 	    DHT_GetData(&DHT11_Data);
 	    Temperature = (float) DHT11_Data.Temperature /10.0;
@@ -110,7 +151,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", Temperature, Humidity);
 		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
 
-		/*SENSOR DE TEMPERATURA END*/
+		/*SENSOR DE TEMPERATURA E UMIDADE END*/
+	}
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+
+	/*Botão para controle manual dos motores de irrigação*/
+	if (GPIO_Pin == Button_Irrigacao_Pin) {
+		/*Inverte o estado do relé*/
+		HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
+		HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
 	}
 }
 
@@ -163,22 +214,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  int i = 1000;
-
-	  /*simula abertura de 0 a 90°*/
-	  for(;i<2000;i++)
-	  {
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, i);
-		  HAL_Delay(1);
-	  }
-
-	  for(;i>1000;i--)
-	  {
-		  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, i);
-		  HAL_Delay(1);
-	  }
-
-
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -431,23 +466,23 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, Motor_Irrigacao_Pin|Motor_Irrigacao_2_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pin : Button_Irrigacao_Pin */
+  GPIO_InitStruct.Pin = Button_Irrigacao_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Button_Irrigacao_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pins : Motor_Irrigacao_Pin Motor_Irrigacao_2_Pin */
+  GPIO_InitStruct.Pin = Motor_Irrigacao_Pin|Motor_Irrigacao_2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DHT11_Pin */
   GPIO_InitStruct.Pin = DHT11_Pin;
@@ -455,6 +490,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(DHT11_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
