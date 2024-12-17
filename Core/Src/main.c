@@ -344,9 +344,8 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	}
 
 	if (GPIO_Pin == Botao_Placa_Pin  && flag_rele == 1) {
-		if (flag_rele_ativar == 0){
-			flag_rele_ativar = 1;
-		} else {
+		flag_rele_ativar++;
+		if (flag_rele_ativar > 1){
 			flag_rele_ativar = 0;
 		}
 	}
