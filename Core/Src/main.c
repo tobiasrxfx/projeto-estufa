@@ -22,12 +22,9 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "DHT.h"
-
 #include "stdio.h"
 #include "string.h"
 #include "TSL2561.h"
-#define TSL2561_ADDR 0x39
-
 #include <ssd1306.h>
 #include <ssd1306_fonts.h>
 
@@ -40,7 +37,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define TSL2561_ADDR 0x39
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -61,7 +58,14 @@ UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 TSL2561 tslSensor;
+DHT_DataTypedef DHT11_Data;
 
+float temperatura, umidade, luminosidade; 
+uint8_t flag_janela = 0; // Flag que permite o controle manual da janela 
+int8_t flag_telas = 0; // Flag que controla a mudança de telas 
+int8_t flag_rele = 0; // 
+uint8_t flag_rele_ativar = 0; // 
+int8_t flag_atualizar_telas = 0; // Quando uma interrupção (temporizador ou botão) é chamada, esta flag permite atualizar os dados da tela
 
 /* USER CODE END PV */
 
@@ -76,19 +80,16 @@ static void MX_ADC1_Init(void);
 static void MX_TIM14_Init(void);
 /* USER CODE BEGIN PFP */
 
+void tela_controle_janela(void);
+void tela_controle_irrigacao(void);
+void tela_dados(void);
+void tela_menu(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-
-DHT_DataTypedef DHT11_Data;
-float Temperature, Humidity;
-uint8_t flag_janela = 0;
-int8_t flag_telas = 0;
-int8_t flag_rele = 0;
-int8_t flag_rele_ativar = 0;
 
 /* Callback para a interrupção do temporizador TIM7 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -99,17 +100,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 	{
 		uint16_t size;
 		uint8_t Data[256];
+		flag_atualizar_telas = 1;
 
 		/*SENSOR DE LUMINOSIDADE BEGIN*/
-		float luxValue;
 
 		/*Testa se o Sensor de Luminosidade estar disponível*/
 		HAL_I2C_IsDeviceReady(&hi2c1, TSL2561_ADDR, 5, HAL_MAX_DELAY);
 		/* Recebe o valor medido em Lux  */
-		if (TSL2561_GetLux(&tslSensor, &luxValue) == HAL_OK)
+		if (TSL2561_GetLux(&tslSensor, &luminosidade) == HAL_OK)
 		{
 			/* Mostra o valor se válido */
-			size = sprintf((char *)Data, "Light: %u lux\n", (uint16_t)luxValue);
+			size = sprintf((char *)Data, "Light: %u lux\n", (uint16_t)luminosidade);
 			HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
 		}
 
@@ -119,14 +120,14 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 		if(!flag_janela) /*Testa se está em modo de controle automático*/
 		{
-			if(luxValue<100) /*janela aberta 90°*/
+			if(luminosidade<100) /*janela aberta 90°*/
 			{
 				for(;posicao_janela<2000;posicao_janela++)
 				{
 					__HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, posicao_janela);
 					for(int i = 0; i <8000;i++);
 				}
-			}else if(luxValue<300) /*janela para 45°*/
+			}else if(luminosidade<300) /*janela para 45°*/
 			{
 				if(posicao_janela < 1500)
 				{
@@ -159,11 +160,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 		/*SENSOR DE TEMPERATURA E UMIDADE BEGIN*/
 
 //	    DHT_GetData(&DHT11_Data);
-//	    Temperature = (float) DHT11_Data.Temperature /10.0;
-//	    Humidity = (float) DHT11_Data.Humidity /10.0;
+//	    temperatura = (float) DHT11_Data.Temperature /10.0;
+//	    umidade = (float) DHT11_Data.Humidity /10.0;
 //
 //		/* Mostra o valor se válido */
-//		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", Temperature, Humidity);
+//		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", temperatura, umidade);
 //		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
 
 		/*SENSOR DE TEMPERATURA E UMIDADE END*/
@@ -189,143 +190,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 }
 
-//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-//
-//	/*Botão para controle manual dos motores de irrigação*/
-//	if (GPIO_Pin == Button_Irrigacao_Pin) {
-//		/*Inverte o estado do relé*/
-//		HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
-//		HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
-//	}
-//	/*Botão para ativar ou desativar a o controle manual da janela*/
-//	if (GPIO_Pin == Button_Janela_Pin) {
-//		uint8_t val_adc;
-//		HAL_ADC_Start(&hadc1); // start the adc
-//		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-//		val_adc = HAL_ADC_GetValue(&hadc1);
-//		HAL_ADC_Stop(&hadc1); // stop adc
-//
-//		if(!flag_janela)
-//		{
-//			if(val_adc < 15) flag_janela = !flag_janela;
-//		}else flag_janela = !flag_janela;
-//	}
-//}
-
-
-void tela_controle_janela()
-{
-
-	ssd1306_Fill(Black);
-
-	ssd1306_SetCursor(35, 5);
-
-	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
-
-	ssd1306_DrawRectangle(0, 0, 127, 15, White);
-
-	ssd1306_DrawRectangle(0, 17, 127, 63, White);
-
-	ssd1306_SetCursor(10, 19);
-
-	ssd1306_WriteString("Controle da janela ", Font_6x8, White);
-
-	ssd1306_Line(67, 60, 96, 60, White);
-	ssd1306_Line(67, 59, 96, 59, White);
-
-	ssd1306_UpdateScreen();
-}
-
-
-
-void tela_controle_irrigacao()
-{
-
-	ssd1306_Fill(Black);
-
-	ssd1306_SetCursor(35, 5);
-
-	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
-
-	ssd1306_DrawRectangle(0, 0, 127, 15, White);
-
-	ssd1306_DrawRectangle(0, 17, 127, 63, White);
-
-	ssd1306_SetCursor(10, 19);
-
-	ssd1306_WriteString("Controle da irrig ", Font_6x8, White);
-
-	ssd1306_Line(99, 60, 123, 60, White);
-	ssd1306_Line(99, 59, 123, 59, White);
-
-	ssd1306_UpdateScreen();
-}
-
-void tela_dados()
-{
-
-	ssd1306_Fill(Black);
-
-	ssd1306_SetCursor(35, 5);
-
-	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
-
-	ssd1306_DrawRectangle(0, 0, 127, 15, White);
-
-	ssd1306_DrawRectangle(0, 17, 127, 63, White);
-
-	ssd1306_SetCursor(4, 19);
-
-	ssd1306_WriteString("Temp.: 25 *C", Font_6x8, White);
-
-	ssd1306_SetCursor(4, 29);
-
-	ssd1306_WriteString("Umi. : 63%", Font_6x8, White);
-
-	ssd1306_SetCursor(4, 39);
-
-	ssd1306_WriteString("Lum. : 200lux", Font_6x8, White);
-
-	ssd1306_Line(35, 60, 64, 60, White);
-	ssd1306_Line(35, 59, 64, 59, White);
-
-	ssd1306_UpdateScreen();
-}
-
-void tela_menu()
-{
-
-	ssd1306_Fill(Black);
-
-	ssd1306_SetCursor(35, 5);
-
-	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
-
-	ssd1306_DrawRectangle(0, 0, 127, 15, White);
-
-	ssd1306_DrawRectangle(0, 17, 127, 63, White);
-
-	ssd1306_SetCursor(35, 19);
-
-	ssd1306_WriteString("Bem vindo!", Font_6x8, White);
-
-	ssd1306_SetCursor(10, 29);
-
-	ssd1306_WriteString("Pressione qualquer", Font_6x8, White);
-
-	ssd1306_SetCursor(45, 39);
-
-	ssd1306_WriteString("botao!", Font_6x8, White);
-
-	ssd1306_Line(3, 60, 32, 60, White);
-	ssd1306_Line(3, 59, 32, 59, White);
-
-	ssd1306_UpdateScreen();
-}
-
-
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
+	flag_atualizar_telas = 1;
 
 	/*Botão para controle manual dos motores de irrigação*/
 	if (GPIO_Pin == Button_Irrigacao_Pin) {
@@ -348,41 +215,6 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 		if (flag_rele_ativar > 1){
 			flag_rele_ativar = 0;
 		}
-	}
-
-	switch (flag_telas) {
-		case 0:
-			tela_menu();
-			break;
-		case 1:
-			tela_dados();
-			break;
-		case 2:
-			tela_controle_janela();
-
-			// Controle manual do motor
-			uint8_t val_adc;
-			HAL_ADC_Start(&hadc1);
-			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-			val_adc = HAL_ADC_GetValue(&hadc1);
-			HAL_ADC_Stop(&hadc1);
-
-			if(!flag_janela)
-			{
-				if(val_adc < 15) flag_janela = !flag_janela;
-			}else flag_janela = !flag_janela;
-
-			break;
-		case 3:
-			tela_controle_irrigacao();
-			flag_rele = 1;
-			if (flag_rele_ativar == 1){
-				HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
-				HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
-			}
-
-		default:
-			break;
 	}
 
 }
@@ -446,12 +278,49 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-
+	
     /* USER CODE BEGIN 3 */
+	while(!flag_atualizar_telas) {} // Avança somente se alguma interrupção for chamada
 
-	//HAL_Delay(5000);
-	//tela_dados();
-
+	// Controle de telas 
+	switch (flag_telas) {
+		case 0:
+			tela_menu();
+			break;
+		case 1:
+			tela_dados();
+			break;
+		case 2:
+			tela_controle_janela();
+		
+			// Controle manual da janela
+			
+			uint8_t val_adc;
+			HAL_ADC_Start(&hadc1);
+			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+			val_adc = HAL_ADC_GetValue(&hadc1);
+			HAL_ADC_Stop(&hadc1);
+		
+			if(!flag_janela)
+			{
+				if(val_adc < 15) flag_janela = !flag_janela; // Verifica se o potênciometro esta na posição inicial
+			}else flag_janela = !flag_janela;
+		
+			break;
+		 case 3:
+			tela_controle_irrigacao(); // Atualiza a tela do controle de irrigação
+			flag_rele = 1; // Permite que ao ativar o botão da placa sejam ativados os reles
+			
+			// Quando botão da placa for pressionado, os relés são ligados/desligados dependendo do estado anterior 
+			if (flag_rele_ativar == 1){
+				HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
+				HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+			}
+	
+		default:
+			break;
+	}
+	flag_atualizar_telas = 0; // Impede que as telas fiquem atualizando sem parar 
   }
   /* USER CODE END 3 */
 }
@@ -830,6 +699,116 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void tela_controle_janela()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(10, 19);
+
+	ssd1306_WriteString("Controle da janela ", Font_6x8, White);
+
+	ssd1306_Line(67, 60, 96, 60, White);
+	ssd1306_Line(67, 59, 96, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+
+
+void tela_controle_irrigacao()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(10, 19);
+
+	ssd1306_WriteString("Controle da irrig ", Font_6x8, White);
+
+	ssd1306_Line(99, 60, 123, 60, White);
+	ssd1306_Line(99, 59, 123, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+void tela_dados()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(4, 19);
+
+	ssd1306_WriteString("Temp.: 25 *C", Font_6x8, White);
+
+	ssd1306_SetCursor(4, 29);
+
+	ssd1306_WriteString("Umi. : 63%", Font_6x8, White);
+
+	ssd1306_SetCursor(4, 39);
+
+	ssd1306_WriteString("Lum. : 200lux", Font_6x8, White);
+
+	ssd1306_Line(35, 60, 64, 60, White);
+	ssd1306_Line(35, 59, 64, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+void tela_menu()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(35, 19);
+
+	ssd1306_WriteString("Bem vindo!", Font_6x8, White);
+
+	ssd1306_SetCursor(10, 29);
+
+	ssd1306_WriteString("Pressione qualquer", Font_6x8, White);
+
+	ssd1306_SetCursor(45, 39);
+
+	ssd1306_WriteString("botao!", Font_6x8, White);
+
+	ssd1306_Line(3, 60, 32, 60, White);
+	ssd1306_Line(3, 59, 32, 59, White);
+
+	ssd1306_UpdateScreen();
+}
 
 /* USER CODE END 4 */
 
