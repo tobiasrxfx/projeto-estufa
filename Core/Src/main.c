@@ -28,6 +28,9 @@
 #include "TSL2561.h"
 #define TSL2561_ADDR 0x39
 
+#include <ssd1306.h>
+#include <ssd1306_fonts.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -83,6 +86,9 @@ static void MX_TIM14_Init(void);
 DHT_DataTypedef DHT11_Data;
 float Temperature, Humidity;
 uint8_t flag_janela = 0;
+int8_t flag_telas = 0;
+int8_t flag_rele = 0;
+int8_t flag_rele_ativar = 0;
 
 /* Callback para a interrupção do temporizador TIM7 */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -183,27 +189,203 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 }
 
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+//
+//	/*Botão para controle manual dos motores de irrigação*/
+//	if (GPIO_Pin == Button_Irrigacao_Pin) {
+//		/*Inverte o estado do relé*/
+//		HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
+//		HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+//	}
+//	/*Botão para ativar ou desativar a o controle manual da janela*/
+//	if (GPIO_Pin == Button_Janela_Pin) {
+//		uint8_t val_adc;
+//		HAL_ADC_Start(&hadc1); // start the adc
+//		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//		val_adc = HAL_ADC_GetValue(&hadc1);
+//		HAL_ADC_Stop(&hadc1); // stop adc
+//
+//		if(!flag_janela)
+//		{
+//			if(val_adc < 15) flag_janela = !flag_janela;
+//		}else flag_janela = !flag_janela;
+//	}
+//}
+
+
+void tela_controle_janela()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(10, 19);
+
+	ssd1306_WriteString("Controle da janela ", Font_6x8, White);
+
+	ssd1306_Line(67, 60, 96, 60, White);
+	ssd1306_Line(67, 59, 96, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+
+
+void tela_controle_irrigacao()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(10, 19);
+
+	ssd1306_WriteString("Controle da irrig ", Font_6x8, White);
+
+	ssd1306_Line(99, 60, 123, 60, White);
+	ssd1306_Line(99, 59, 123, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+void tela_dados()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(4, 19);
+
+	ssd1306_WriteString("Temp.: 25 *C", Font_6x8, White);
+
+	ssd1306_SetCursor(4, 29);
+
+	ssd1306_WriteString("Umi. : 63%", Font_6x8, White);
+
+	ssd1306_SetCursor(4, 39);
+
+	ssd1306_WriteString("Lum. : 200lux", Font_6x8, White);
+
+	ssd1306_Line(35, 60, 64, 60, White);
+	ssd1306_Line(35, 59, 64, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+void tela_menu()
+{
+
+	ssd1306_Fill(Black);
+
+	ssd1306_SetCursor(35, 5);
+
+	ssd1306_WriteString("AutoEstufa", Font_6x8, White);
+
+	ssd1306_DrawRectangle(0, 0, 127, 15, White);
+
+	ssd1306_DrawRectangle(0, 17, 127, 63, White);
+
+	ssd1306_SetCursor(35, 19);
+
+	ssd1306_WriteString("Bem vindo!", Font_6x8, White);
+
+	ssd1306_SetCursor(10, 29);
+
+	ssd1306_WriteString("Pressione qualquer", Font_6x8, White);
+
+	ssd1306_SetCursor(45, 39);
+
+	ssd1306_WriteString("botao!", Font_6x8, White);
+
+	ssd1306_Line(3, 60, 32, 60, White);
+	ssd1306_Line(3, 59, 32, 59, White);
+
+	ssd1306_UpdateScreen();
+}
+
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+
 
 	/*Botão para controle manual dos motores de irrigação*/
 	if (GPIO_Pin == Button_Irrigacao_Pin) {
-		/*Inverte o estado do relé*/
-		HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
-		HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+		flag_telas++;
+		if (flag_telas >= 4){
+			flag_telas = 0; // Tela Inicial
+		}
 	}
+
 	/*Botão para ativar ou desativar a o controle manual da janela*/
 	if (GPIO_Pin == Button_Janela_Pin) {
-		uint8_t val_adc;
-		HAL_ADC_Start(&hadc1); // start the adc
-		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-		val_adc = HAL_ADC_GetValue(&hadc1);
-		HAL_ADC_Stop(&hadc1); // stop adc
-
-		if(!flag_janela)
-		{
-			if(val_adc < 15) flag_janela = !flag_janela;
-		}else flag_janela = !flag_janela;
+		flag_telas--;
+		if (flag_telas < 0){
+			flag_telas = 3; // Ultima tela
+		}
 	}
+
+	if (GPIO_Pin == Botao_Placa_Pin  && flag_rele == 1) {
+		if (flag_rele_ativar == 0){
+			flag_rele_ativar = 1;
+		} else {
+			flag_rele_ativar = 0;
+		}
+	}
+
+	switch (flag_telas) {
+		case 0:
+			tela_menu();
+			break;
+		case 1:
+			tela_dados();
+			break;
+		case 2:
+			tela_controle_janela();
+
+			// Controle manual do motor
+			uint8_t val_adc;
+			HAL_ADC_Start(&hadc1);
+			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+			val_adc = HAL_ADC_GetValue(&hadc1);
+			HAL_ADC_Stop(&hadc1);
+
+			if(!flag_janela)
+			{
+				if(val_adc < 15) flag_janela = !flag_janela;
+			}else flag_janela = !flag_janela;
+
+			break;
+		case 3:
+			tela_controle_irrigacao();
+			flag_rele = 1;
+			if (flag_rele_ativar == 1){
+				HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
+				HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+			}
+
+		default:
+			break;
+	}
+
 }
 
 /* USER CODE END 0 */
@@ -245,6 +427,8 @@ int main(void)
   MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 
+  ssd1306_Init();
+
   HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
 
   HAL_ADC_Start(&hadc1);
@@ -253,6 +437,9 @@ int main(void)
 
   HAL_TIM_Base_Start_IT(&htim7);
   HAL_TIM_Base_Start_IT(&htim14);
+
+
+  tela_menu();
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -262,6 +449,10 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+
+	//HAL_Delay(5000);
+	//tela_dados();
+
   }
   /* USER CODE END 3 */
 }
@@ -599,6 +790,12 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(DHT11_GPIO_Port, DHT11_Pin, GPIO_PIN_SET);
 
+  /*Configure GPIO pin : Botao_Placa_Pin */
+  GPIO_InitStruct.Pin = Botao_Placa_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(Botao_Placa_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : Button_Janela_Pin Button_Irrigacao_Pin */
   GPIO_InitStruct.Pin = Button_Janela_Pin|Button_Irrigacao_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
@@ -625,6 +822,9 @@ static void MX_GPIO_Init(void)
 
   HAL_NVIC_SetPriority(EXTI4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

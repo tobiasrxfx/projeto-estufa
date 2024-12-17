@@ -59,6 +59,9 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define Botao_Placa_Pin GPIO_PIN_13
+#define Botao_Placa_GPIO_Port GPIOC
+#define Botao_Placa_EXTI_IRQn EXTI15_10_IRQn
 #define Button_Janela_Pin GPIO_PIN_1
 #define Button_Janela_GPIO_Port GPIOA
 #define Button_Janela_EXTI_IRQn EXTI1_IRQn
