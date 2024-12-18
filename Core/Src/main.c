@@ -159,13 +159,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 
 		/*SENSOR DE TEMPERATURA E UMIDADE BEGIN*/
 
-//	    DHT_GetData(&DHT11_Data);
-//	    temperatura = (float) DHT11_Data.Temperature /10.0;
-//	    umidade = (float) DHT11_Data.Humidity /10.0;
-//
-//		/* Mostra o valor se válido */
-//		size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", temperatura, umidade);
-//		HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
+	    DHT_GetData(&DHT11_Data);
+	    temperatura = (float) DHT11_Data.Temperature /10.0;
+	    umidade = (float) DHT11_Data.Humidity /10.0;
+
+		/* Mostra o valor se válido */
+		//size = sprintf((char *)Data, "Temp: %0.2f -- Umi: %0.2f\n", temperatura, umidade);
+		//HAL_UART_Transmit(&huart2, (uint8_t*)Data, size, HAL_MAX_DELAY);
 
 		/*SENSOR DE TEMPERATURA E UMIDADE END*/
 	}
@@ -210,11 +210,28 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 		}
 	}
 
-	if (GPIO_Pin == Botao_Placa_Pin  && flag_rele == 1) {
-		flag_rele_ativar++;
-		if (flag_rele_ativar > 1){
-			flag_rele_ativar = 0;
+	if (GPIO_Pin == Botao_Placa_Pin) {
+		if(flag_rele)
+		{
+			flag_rele_ativar++;
+			if (flag_rele_ativar > 1){
+				flag_rele_ativar = 0;
+			}
 		}
+		if(flag_telas == 2)
+		{
+			uint8_t val_adc;
+			HAL_ADC_Start(&hadc1);
+			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+			val_adc = HAL_ADC_GetValue(&hadc1);
+			HAL_ADC_Stop(&hadc1);
+
+			if(!flag_janela)
+			{
+				if(val_adc < 15) flag_janela = !flag_janela; // Verifica se o potênciometro esta na posição inicial
+			}else flag_janela = !flag_janela;
+		}
+
 	}
 
 }
@@ -280,31 +297,25 @@ int main(void)
     /* USER CODE END WHILE */
 	
     /* USER CODE BEGIN 3 */
-	while(!flag_atualizar_telas) {} // Avança somente se alguma interrupção for chamada
+	//while(!flag_atualizar_telas) {} // Avança somente se alguma interrupção for chamada
 
+
+	HAL_Delay(500);
 	// Controle de telas 
 	switch (flag_telas) {
 		case 0:
 			tela_menu();
+			flag_rele = 0; // So permite controle da irrigação na tela 3
 			break;
 		case 1:
 			tela_dados();
+			flag_rele = 0; // So permite controle da irrigação na tela 3
 			break;
 		case 2:
 			tela_controle_janela();
-		
+
+			flag_rele = 0; // So permite controle da irrigação na tela 3
 			// Controle manual da janela
-			
-			uint8_t val_adc;
-			HAL_ADC_Start(&hadc1);
-			HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-			val_adc = HAL_ADC_GetValue(&hadc1);
-			HAL_ADC_Stop(&hadc1);
-		
-			if(!flag_janela)
-			{
-				if(val_adc < 15) flag_janela = !flag_janela; // Verifica se o potênciometro esta na posição inicial
-			}else flag_janela = !flag_janela;
 		
 			break;
 		 case 3:
@@ -315,6 +326,7 @@ int main(void)
 			if (flag_rele_ativar == 1){
 				HAL_GPIO_TogglePin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin);
 				HAL_GPIO_TogglePin(Motor_Irrigacao_2_GPIO_Port, Motor_Irrigacao_2_Pin);
+				flag_rele_ativar = 0;
 			}
 	
 		default:
@@ -717,6 +729,19 @@ void tela_controle_janela()
 
 	ssd1306_WriteString("Controle da janela ", Font_6x8, White);
 
+	if(flag_janela)
+	{
+		ssd1306_SetCursor(35,40);
+
+		ssd1306_WriteString("Ativado", Font_6x8, White);
+	}else
+	{
+
+		ssd1306_SetCursor(35, 40);
+
+		ssd1306_WriteString("Desativado", Font_6x8, White);
+	}
+
 	ssd1306_Line(67, 60, 96, 60, White);
 	ssd1306_Line(67, 59, 96, 59, White);
 
@@ -742,6 +767,19 @@ void tela_controle_irrigacao()
 
 	ssd1306_WriteString("Controle da irrig ", Font_6x8, White);
 
+	if(!HAL_GPIO_ReadPin(Motor_Irrigacao_GPIO_Port, Motor_Irrigacao_Pin))
+	{
+		ssd1306_SetCursor(35,40);
+
+		ssd1306_WriteString("Ativado", Font_6x8, White);
+	}else
+	{
+
+		ssd1306_SetCursor(35, 40);
+
+		ssd1306_WriteString("Desativado", Font_6x8, White);
+	}
+
 	ssd1306_Line(99, 60, 123, 60, White);
 	ssd1306_Line(99, 59, 123, 59, White);
 
@@ -750,6 +788,8 @@ void tela_controle_irrigacao()
 
 void tela_dados()
 {
+
+	uint8_t string_dados[15] = {0};
 
 	ssd1306_Fill(Black);
 
@@ -763,15 +803,20 @@ void tela_dados()
 
 	ssd1306_SetCursor(4, 19);
 
-	ssd1306_WriteString("Temp.: 25 *C", Font_6x8, White);
+
+	sprintf(string_dados, "Temp.: %0.2f *C", temperatura);
+
+	ssd1306_WriteString(string_dados, Font_6x8, White);
 
 	ssd1306_SetCursor(4, 29);
 
-	ssd1306_WriteString("Umi. : 63%", Font_6x8, White);
+	sprintf((char *)string_dados, "Umi. : %0.2f %", umidade);
+	ssd1306_WriteString(string_dados, Font_6x8, White);
 
 	ssd1306_SetCursor(4, 39);
 
-	ssd1306_WriteString("Lum. : 200lux", Font_6x8, White);
+	sprintf((char *)string_dados, "Lum. : %u lux",(uint8_t) luminosidade);
+	ssd1306_WriteString(string_dados, Font_6x8, White);
 
 	ssd1306_Line(35, 60, 64, 60, White);
 	ssd1306_Line(35, 59, 64, 59, White);
